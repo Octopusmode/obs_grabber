@@ -19,14 +19,6 @@ from collections import deque
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-data_file = 'data/rtsp_links.txt'
-links = []
-with open(data_file, 'r') as file:
-    links = [link.strip() for link in file.readlines()]
-links = list(set(links))
-links_count = len(links)
-logging.info(f'Found {links_count} unique links')
-
 # def is_url(s):
 #     try:
 #         result = urlparse(s)
@@ -40,6 +32,56 @@ logging.info(f'Found {links_count} unique links')
 
 def is_url(s):
     return True
+
+# def create_mosaic(frames, final_size=(1000, 1000)):
+#     start = cv2.getTickCount()
+#     _frames = frames.copy()
+#     # Посчитать общее количество изображений
+#     n_frames = len(_frames)
+#     # Посчитать сколько получается столбцов и строк
+#     aspect_ratio = final_size[0] / final_size[1]
+#     n_cols = round(math.sqrt(n_frames * aspect_ratio))
+#     n_rows = n_frames // n_cols
+
+#     # Обрезать каждое изображение под пропорции размера мозаики
+#     frame_size = (final_size[0] // n_cols, final_size[1] // n_rows)
+
+#     # Если количество элементов не чётное, то добавить черный элемент
+#     if n_frames % n_cols != 0:
+#         black_frame = np.zeros((frame_size[1], frame_size[0], 3), dtype=np.uint8)
+#         _frames.append(black_frame)
+#         n_frames += 1
+#         n_rows = n_frames // n_cols
+#     # Обрезать каждое изображение под пропорции размера мозаики
+#     frame_size = (final_size[0] // n_cols, final_size[1] // n_rows)
+#     resized_frames = []
+#     for frame in _frames:
+#         if frame is None:
+#             continue
+#         height, width = frame.shape[:2]
+#         new_width = min(frame_size[0], width)
+#         new_height = min(frame_size[1], height)
+#         left = (width - new_width) // 2
+#         top = (height - new_height) // 2
+#         right = (width + new_width) // 2
+#         bottom = (height + new_height) // 2
+#         frame = frame[top:bottom, left:right]
+#         resized_frames.append(frame)
+#     # Ресайзнуть каждое изображение до размера элемента мозаики
+#     resized_frames = [cv2.resize(frame, frame_size, interpolation=cv2.INTER_NEAREST) for frame in resized_frames]
+#     # Если изображений не хватает, добавляем черные изображения
+#     while len(resized_frames) < n_rows * n_cols:
+#         black_frame = np.zeros((frame_size[1], frame_size[0], 3), dtype=np.uint8)
+#         resized_frames.append(black_frame)
+#     # Собрать все получившиеся изображения в мозаику
+#     mosaic = []
+#     for i in range(n_rows):
+#         row = np.hstack(resized_frames[i*n_cols:(i+1)*n_cols])
+#         mosaic.append(row)
+#     mosaic = np.vstack(mosaic)
+#     logging.debug(f'Mosaic created in {(cv2.getTickCount() - start) / cv2.getTickFrequency()} seconds')
+#     return mosaic
+    
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -63,13 +105,22 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     # Обрезать каждое изображение под пропорции размера мозаики
     frame_size = (final_size[0] // n_cols, final_size[1] // n_rows)
     resized_frames = []
-    
     for frame in _frames:
         if frame is None:
             continue
         height, width = frame.shape[:2]
-        new_width = min(frame_size[0], width)
-        new_height = min(frame_size[1], height)
+        frame_aspect_ratio = width / height
+        target_aspect_ratio = frame_size[0] / frame_size[1]
+
+        if frame_aspect_ratio > target_aspect_ratio:
+            # Изображение слишком широкое, обрезать по ширине
+            new_width = int(height * target_aspect_ratio)
+            new_height = height
+        else:
+            # Изображение слишком высокое, обрезать по высоте
+            new_width = width
+            new_height = int(width / target_aspect_ratio)
+
         left = (width - new_width) // 2
         top = (height - new_height) // 2
         right = (width + new_width) // 2
@@ -90,8 +141,7 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     mosaic = np.vstack(mosaic)
     logging.debug(f'Mosaic created in {(cv2.getTickCount() - start) / cv2.getTickFrequency()} seconds')
     return mosaic
-    
-    
+
 class VideoReader(Process):
     def __init__(self, link, frame_queue, delay=1):
         super().__init__()
@@ -137,6 +187,13 @@ class VideoReader(Process):
 
 
 if __name__ == '__main__':
+    data_file = 'data/rtsp_links.txt'
+    links = []
+    with open(data_file, 'r') as file:
+        links = [link.strip() for link in file.readlines()]
+    links = list(set(links))
+    links_count = len(links)
+    logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
     readers = [VideoReader(link, frame_queue) for link in links]
     for reader in readers:
@@ -153,8 +210,10 @@ if __name__ == '__main__':
                 running = False
             name, frame = frame_queue.get()
             frames.append((name, frame))
-            
-        logging.debug(f'Got {len(frames)} frames')
+        frame_count = len(frames)
+        if frame_count > 0 and frame_count != frame_count_old:
+            logging.debug(f'Got {len(frames)} frames')
+        frame_count_old = frame_count
         
         if len(frames) > 0:
             mosaic = create_mosaic([frame for name, frame in frames])
