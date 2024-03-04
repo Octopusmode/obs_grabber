@@ -17,8 +17,15 @@ import numpy as np
 import math
 from collections import deque
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+data_file = 'data/rtsp_links.txt'
+links = []
+with open(data_file, 'r') as file:
+    links = [link.strip() for link in file.readlines()]
+links = list(set(links))
+links_count = len(links)
+logging.info(f'Found {links_count} unique links')
 
 # def is_url(s):
 #     try:
@@ -58,7 +65,8 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     resized_frames = []
     
     for frame in _frames:
-
+        if frame is None:
+            continue
         height, width = frame.shape[:2]
         new_width = min(frame_size[0], width)
         new_height = min(frame_size[1], height)
@@ -85,13 +93,14 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     
     
 class VideoReader(Process):
-    def __init__(self, link, frame_queue):
+    def __init__(self, link, frame_queue, delay=1):
         super().__init__()
         self.is_valid = is_url(link)
         self.link = link
         self.frame_queue = frame_queue
         self.cap = None
         self.is_stopped = False
+        self.delay = delay
         # logging.debug(f'{self.name} created with link {link}')
         
     def run(self):
@@ -106,7 +115,7 @@ class VideoReader(Process):
                 self.start_capture()
             # preprocessing here
             logging.debug(f'{self.name} put frame from {self.link} to queue')
-            sleep(1)
+            sleep(self.delay)
             self.frame_queue.put((self.name, frame))
         
     def start_capture(self):
@@ -118,21 +127,13 @@ class VideoReader(Process):
             
     def stop(self):
         self.is_stopped = True
-        if self.cap.is_cap_open():
+        if self.is_cap_open():
             self.cap.release()
             # logging.debug(f'{self.name} terminated {self.link}')
         self.terminate()
         
     def is_cap_open(self):
         return self.cap is not None and self.cap.isOpened()
-    
-    
-data_file = 'data/rtsp_links.txt'
-links = []
-with open(data_file, 'r') as file:
-    links = [link.strip() for link in file.readlines()]
-links = list(set(links[:10]))
-print(f'Found {len(links)} unique links')
 
 
 if __name__ == '__main__':
@@ -143,24 +144,33 @@ if __name__ == '__main__':
     
     running = True  # Флаг для контроля состояния программы
     
-    frames = deque(maxlen=80)
+    frames = deque(maxlen=links_count)
     
     while running:
         while not frame_queue.empty():
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                running = False
             name, frame = frame_queue.get()
             frames.append((name, frame))
-        print(f'Got {len(frames)} frames')
-        sleep(1)
+            
+        logging.info(f'Got {len(frames)} frames')
+        
         if len(frames) > 0:
             mosaic = create_mosaic([frame for name, frame in frames])
             cv2.imshow('Mosaic', mosaic)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-              # Установка флага в False для остановки программы
+            
+        if not running:
+            logging.disable(logging.DEBUG)
+            logging.info('Stop key pressed')
             for reader in readers:
                 reader.stop()
-        # Проверить, что все потоки is_stopped
-        if all([reader.is_stopped for reader in readers]):
-            # Если все потоки остановлены, то завершить программу
-            running = False
+            logging.info('All readers stopped')
+            
+        # # Проверить, что все потоки is_stopped
+        # if all([reader.is_stopped for reader in readers]):
+        #     # Если все потоки остановлены, то завершить программу
+        #     logging.info('Halting the program')
+        #     running = False
         
     cv2.destroyAllWindows()
