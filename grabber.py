@@ -111,7 +111,7 @@ class VideoReader(Process):
             if not ret:
                 self.cap.release()
                 self.cap = None
-                logging.debug(f'{self.name} closed {self.link}')
+                logging.error(f'{self.name} closed {self.link}')
                 self.start_capture()
             # preprocessing here
             logging.debug(f'{self.name} put frame from {self.link} to queue')
@@ -154,7 +154,7 @@ if __name__ == '__main__':
             name, frame = frame_queue.get()
             frames.append((name, frame))
             
-        logging.info(f'Got {len(frames)} frames')
+        logging.debug(f'Got {len(frames)} frames')
         
         if len(frames) > 0:
             mosaic = create_mosaic([frame for name, frame in frames])
