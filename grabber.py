@@ -25,6 +25,7 @@ model = YOLO('yolov8l.pt')
 model.to('cuda')
 
 TARGET_CLASSES = [7]
+CONF = 0.4
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -82,11 +83,11 @@ def create_mosaic(frames, final_size=(1000, 1000)):
         row = np.hstack(resized_frames[i*n_cols:(i+1)*n_cols])
         mosaic.append(row)
     mosaic = np.vstack(mosaic)
-    logging.debug(f'Mosaic created in {(cv2.getTickCount() - start) / cv2.getTickFrequency()} seconds')
+    # logging.debug(f'Mosaic created in {(cv2.getTickCount() - start) / cv2.getTickFrequency()} seconds')
     return mosaic
 
 class VideoReader(Process):
-    def __init__(self, link, frame_queue, delay=10):
+    def __init__(self, link, frame_queue, delay=0.5):
         super().__init__()
         self.is_valid = link
         self.link = link
@@ -135,7 +136,7 @@ if __name__ == '__main__':
     links = []
     with open(data_file, 'r') as file:
         links = [link.strip() for link in file.readlines()]
-    links = list(set(links))
+    links = list(set(links))[:40]
     links_count = len(links)
     logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
@@ -145,7 +146,7 @@ if __name__ == '__main__':
     
     running = True  # Флаг для контроля состояния программы
     
-    frames = deque(maxlen=links_count)
+    frames = deque(maxlen=links_count//2)
     
     while running:
         while not frame_queue.empty():
@@ -154,6 +155,7 @@ if __name__ == '__main__':
                 running = False
             name, frame = frame_queue.get()
             frames.append((name, frame))
+            print(f'Frames: {len(frames)}')
             grabbed_frame_count += 1
              
         frame_count = len(frames)
@@ -163,14 +165,55 @@ if __name__ == '__main__':
         
         cv2.setWindowTitle('Mosaic', f'Frames: {grabbed_frame_count}')
         
-        if len(frames) > 0 and (grabbed_frame_count % links_count == 0 or grabbed_frame_count < links_count):
+        if len(frames) > 0 and (grabbed_frame_count % links_count == 0 or grabbed_frame_count < (links_count // 2)):
             mosaic = create_mosaic([frame for name, frame in frames]) 
-            cv2.imshow('Mosaic', mosaic)
+            # cv2.imshow('Mosaic', mosaic)
+    
+        if len(frames) > 0:
+            grabber_name, image = frames.pop()
+            imference_start = time()
+            predictions = model(image, conf=CONF)
+            
+            objects = []
+            
+            for prediction in predictions:
+                boxes = prediction.boxes.xyxy.cpu().numpy()
+                classes = prediction.boxes.cls.cpu().numpy()
+                confs = prediction.boxes.conf.cpu().numpy()
+                
+                # Проверить, что в confs есть TARGET_CLASSES
+                # Вернуть список индексов, где есть TARGET_CLASSES
+                target_classes = [i for i, cls in enumerate(classes) if cls in TARGET_CLASSES and confs[i] > CONF]
+                
+                if len(target_classes) == 0:
+                    continue
+                # Сохранить информацию о найденных объектах в список
+                # В формате x1, y1, x2, y2, class, conf
+                for i in target_classes:
+                    x1, y1, x2, y2 = boxes[i]
+                    object_height = y2 - y1
+                    conf = confs[i]
+                    objects.append((x1, y1, x2, y2, classes[i], conf))
+                    
+            if len(objects) > 0:
+                logging.debug(f'Found {len(objects)} objects in {grabber_name}')
+                timestamp = time()
+                cv2.imwrite(f'x:/frames/frame_s_{timestamp}.jpg', frame)
+                with open(f'x:/frames/frame_s_{timestamp}.txt', 'w') as file:
+                    for obj in objects:
+                        file.write(f'{obj[0]} {obj[1]} {obj[2]} {obj[3]} {obj[4]} {obj[5]}\n')
+                # for obj in objects:
+                #     logging.debug(f'Object: {obj}')
+            sleep(5)         
+            
         
-        if len(frames) > 2:
-            frame1 = frames.pop()
-            frame2 = frames.popleft()
-            predicts = model([frame1, frame2])
+        # if len(frames) > 1:
+        #     # frame1 = frames.pop()[1]
+        #     # frame2 = frames.popleft()[1]
+        #     frame = frames[::-1][0][1]
+        #     imference_start = time()
+        #     predicts = model(frame, size=640)
+        #     logging.INFO(f'Inference time: {time() - imference_start}')
             
             
         

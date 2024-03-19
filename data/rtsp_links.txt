@@ -12,7 +12,6 @@ https://live.cmirit.ru:443/live/dks-03_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/mosk-stal_640x360.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/axis7_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/mosk-stal_640x360.stream/playlist.m3u8
-https://live.cmirit.ru:443/live/art-uaz.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/smart1_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/kolhryn_640x360.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/its-pobe-luna-01.stream/playlist.m3u8
