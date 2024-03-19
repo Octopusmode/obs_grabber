@@ -10,25 +10,21 @@
 import logging
 import cv2
 from multiprocessing import Process, Queue
-import requests
 from urllib.parse import urlparse
 from time import sleep
 import numpy as np
 import math
 from collections import deque
+from time import time
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+from ultralytics import YOLO
 
-# def is_url(s):
-#     try:
-#         result = urlparse(s)
-#         if all([result.scheme, result.netloc]):
-#             response = requests.get(s, timeout=5)
-#             return response.status_code == 200
-#         else:
-#             return False
-#     except (requests.ConnectionError, requests.Timeout, ValueError):
-#         return False
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+model = YOLO('yolov8l.pt')
+model.to('cuda')
+
+TARGET_CLASSES = [7]
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -90,7 +86,7 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     return mosaic
 
 class VideoReader(Process):
-    def __init__(self, link, frame_queue, delay=1):
+    def __init__(self, link, frame_queue, delay=10):
         super().__init__()
         self.is_valid = link
         self.link = link
@@ -132,13 +128,14 @@ class VideoReader(Process):
     def is_cap_open(self):
         return self.cap is not None and self.cap.isOpened()
 
+grabbed_frame_count = 0
 
 if __name__ == '__main__':
     data_file = 'data/rtsp_links.txt'
     links = []
     with open(data_file, 'r') as file:
         links = [link.strip() for link in file.readlines()]
-    links = list(set(links))[:10]
+    links = list(set(links))
     links_count = len(links)
     logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
@@ -157,15 +154,26 @@ if __name__ == '__main__':
                 running = False
             name, frame = frame_queue.get()
             frames.append((name, frame))
+            grabbed_frame_count += 1
+             
         frame_count = len(frames)
         if frame_count > 0 and frame_count != frame_count_old:
             logging.debug(f'Got {len(frames)} frames')
         frame_count_old = frame_count
         
-        if len(frames) > 0:
-            mosaic = create_mosaic([frame for name, frame in frames])
+        cv2.setWindowTitle('Mosaic', f'Frames: {grabbed_frame_count}')
+        
+        if len(frames) > 0 and (grabbed_frame_count % links_count == 0 or grabbed_frame_count < links_count):
+            mosaic = create_mosaic([frame for name, frame in frames]) 
             cv2.imshow('Mosaic', mosaic)
+        
+        if len(frames) > 2:
+            frame1 = frames.pop()
+            frame2 = frames.popleft()
+            predicts = model([frame1, frame2])
             
+            
+        
         if not running:
             logging.disable(logging.DEBUG)
             logging.info('Stop key pressed')

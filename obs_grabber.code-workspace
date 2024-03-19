@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../yolov9"
+		},
+		{
+			"path": "M:/dev/ONNX-YOLOv7-Object-Detection"
 		}
 	]
 }
