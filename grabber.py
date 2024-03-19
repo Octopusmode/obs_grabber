@@ -26,6 +26,9 @@ model.to('cuda')
 
 TARGET_CLASSES = [7]
 CONF = 0.4
+CYCLE = 0
+
+mosaic = None
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -108,7 +111,7 @@ class VideoReader(Process):
                 logging.error(f'{self.name} closed {self.link}')
                 self.start_capture()
             # preprocessing here
-            logging.debug(f'{self.name} put frame from {self.link} to queue')
+            # logging.debug(f'{self.name} put frame from {self.link} to queue')
             sleep(self.delay)
             self.frame_queue.put((self.name, frame))
         
@@ -136,7 +139,7 @@ if __name__ == '__main__':
     links = []
     with open(data_file, 'r') as file:
         links = [link.strip() for link in file.readlines()]
-    links = list(set(links))[:40]
+    links = list(set(links))[:10]
     links_count = len(links)
     logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
@@ -146,10 +149,11 @@ if __name__ == '__main__':
     
     running = True  # Флаг для контроля состояния программы
     
-    frames = deque(maxlen=links_count//2)
+    frames = deque(maxlen=links_count)
     
     while running:
-        while not frame_queue.empty():
+        # Накапливать кадры пока не наберётся нужное количество
+        while not frame_queue.empty() and len(frames) < links_count:
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 running = False
@@ -157,20 +161,28 @@ if __name__ == '__main__':
             frames.append((name, frame))
             print(f'Frames: {len(frames)}')
             grabbed_frame_count += 1
-             
-        frame_count = len(frames)
-        if frame_count > 0 and frame_count != frame_count_old:
-            logging.debug(f'Got {len(frames)} frames')
-        frame_count_old = frame_count
-        
-        cv2.setWindowTitle('Mosaic', f'Frames: {grabbed_frame_count}')
-        
-        if len(frames) > 0 and (grabbed_frame_count % links_count == 0 or grabbed_frame_count < (links_count // 2)):
+            cv2.setWindowTitle('Mosaic', f'Frames: {len(frames)}')
             mosaic = create_mosaic([frame for name, frame in frames]) 
-            # cv2.imshow('Mosaic', mosaic)
+             
+        # frame_count = len(frames)
+        # if frame_count > 0 and frame_count != frame_count_old:
+        #     logging.debug(f'Got {len(frames)} frames')
+        # frame_count_old = frame_count
+        
+        # Отрисовываем всю пачку
+        if mosaic is not None:
+            cv2.imshow('Mosaic', mosaic)
+        else:
+            cv2.imshow('Mosaic', np.zeros((1000, 1000, 3), dtype=np.uint8))
+                     
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            running = False
     
-        if len(frames) > 0:
+        # Обрабатываем всю пачку кадров
+        while len(frames) > 0:
             grabber_name, image = frames.pop()
+            cv2.setWindowTitle('Mosaic', f'Frames: {len(frames)}')
             imference_start = time()
             predictions = model(image, conf=CONF)
             
@@ -203,19 +215,7 @@ if __name__ == '__main__':
                     for obj in objects:
                         file.write(f'{obj[0]} {obj[1]} {obj[2]} {obj[3]} {obj[4]} {obj[5]}\n')
                 # for obj in objects:
-                #     logging.debug(f'Object: {obj}')
-            sleep(5)         
-            
-        
-        # if len(frames) > 1:
-        #     # frame1 = frames.pop()[1]
-        #     # frame2 = frames.popleft()[1]
-        #     frame = frames[::-1][0][1]
-        #     imference_start = time()
-        #     predicts = model(frame, size=640)
-        #     logging.INFO(f'Inference time: {time() - imference_start}')
-            
-            
+                #     logging.debug(f'Object: {obj}')                  
         
         if not running:
             logging.disable(logging.DEBUG)
@@ -223,11 +223,6 @@ if __name__ == '__main__':
             for reader in readers:
                 reader.stop()
             logging.info('All readers stopped')
-            
-        # # Проверить, что все потоки is_stopped
-        # if all([reader.is_stopped for reader in readers]):
-        #     # Если все потоки остановлены, то завершить программу
-        #     logging.info('Halting the program')
-        #     running = False
+            break
         
     cv2.destroyAllWindows()
