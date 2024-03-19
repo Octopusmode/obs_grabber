@@ -7,6 +7,7 @@
     Сохраняет все фреймы где есть файлы с нужными классами в отдельную папку
     Вместе с фреймами сохраняются боундинг боксы и классы обнаруженных объектов
 """
+import gc
 import logging
 import cv2
 from multiprocessing import Process, Queue
@@ -26,9 +27,10 @@ model.to('cuda')
 
 TARGET_CLASSES = [7]
 CONF = 0.4
-CYCLE = 0
+CYCLE = 5
 
 mosaic = None
+last_time = time()
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -104,20 +106,23 @@ class VideoReader(Process):
         while not self.is_stopped:
             if self.cap is None:
                 self.start_capture()
+            _, frame = self.cap.read()
             ret, frame = self.cap.read()
             if not ret:
                 self.cap.release()
                 self.cap = None
                 logging.error(f'{self.name} closed {self.link}')
                 self.start_capture()
-            # preprocessing here
+            sleep(0.5)
             # logging.debug(f'{self.name} put frame from {self.link} to queue')
-            sleep(self.delay)
+            # sleep(self.delay)
             self.frame_queue.put((self.name, frame))
         
     def start_capture(self):
         if self.is_valid:
             self.cap = cv2.VideoCapture(self.link)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            self.cap.set(cv2.CAP_PROP_FPS, 1)
             # logging.debug(f'{self.name} started {self.link}')
         else:
             logging.debug(f'{self.name} is not valid {self.link}')
@@ -139,7 +144,7 @@ if __name__ == '__main__':
     links = []
     with open(data_file, 'r') as file:
         links = [link.strip() for link in file.readlines()]
-    links = list(set(links))[:10]
+    links = list(set(links))[:40]
     links_count = len(links)
     logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
@@ -153,76 +158,80 @@ if __name__ == '__main__':
     
     while running:
         # Накапливать кадры пока не наберётся нужное количество
-        while not frame_queue.empty() and len(frames) < links_count:
+        while not frame_queue.empty(): # and len(frames) < links_count:
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 running = False
             name, frame = frame_queue.get()
             frames.append((name, frame))
-            print(f'Frames: {len(frames)}')
             grabbed_frame_count += 1
             cv2.setWindowTitle('Mosaic', f'Frames: {len(frames)}')
-            mosaic = create_mosaic([frame for name, frame in frames]) 
              
-        # frame_count = len(frames)
-        # if frame_count > 0 and frame_count != frame_count_old:
-        #     logging.debug(f'Got {len(frames)} frames')
-        # frame_count_old = frame_count
+            # frame_count = len(frames)
+            # if frame_count > 0 and frame_count != frame_count_old:
+            #     logging.debug(f'Got {len(frames)} frames')
+            # frame_count_old = frame_count
+            
+            # Отрисовываем всю пачку
+            if mosaic is not None:
+                cv2.imshow('Mosaic', mosaic)
+            else:
+                cv2.imshow('Mosaic', np.zeros((1000, 1000, 3), dtype=np.uint8))
+                        
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                running = False
         
-        # Отрисовываем всю пачку
-        if mosaic is not None:
-            cv2.imshow('Mosaic', mosaic)
-        else:
-            cv2.imshow('Mosaic', np.zeros((1000, 1000, 3), dtype=np.uint8))
-                     
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            running = False
-    
-        # Обрабатываем всю пачку кадров
-        while len(frames) > 0:
-            grabber_name, image = frames.pop()
-            cv2.setWindowTitle('Mosaic', f'Frames: {len(frames)}')
-            imference_start = time()
-            predictions = model(image, conf=CONF)
-            
-            objects = []
-            
-            for prediction in predictions:
-                boxes = prediction.boxes.xyxy.cpu().numpy()
-                classes = prediction.boxes.cls.cpu().numpy()
-                confs = prediction.boxes.conf.cpu().numpy()
-                
-                # Проверить, что в confs есть TARGET_CLASSES
-                # Вернуть список индексов, где есть TARGET_CLASSES
-                target_classes = [i for i, cls in enumerate(classes) if cls in TARGET_CLASSES and confs[i] > CONF]
-                
-                if len(target_classes) == 0:
-                    continue
-                # Сохранить информацию о найденных объектах в список
-                # В формате x1, y1, x2, y2, class, conf
-                for i in target_classes:
-                    x1, y1, x2, y2 = boxes[i]
-                    object_height = y2 - y1
-                    conf = confs[i]
-                    objects.append((x1, y1, x2, y2, classes[i], conf))
+            # Каждые n секунд обрабатываем все кадры
+            if time() - last_time > CYCLE:
+                mosaic = create_mosaic([frame for name, frame in frames]) 
+                # Обрабатываем всю пачку кадров
+                while len(frames) > 0:
+                    last_time = time()
+                    grabber_name, image = frames.pop()
+                    cv2.setWindowTitle('Mosaic', f'Frames: {len(frames)}')
+                    imference_start = time()
+                    predictions = model(image, stream=True,conf=CONF)
                     
-            if len(objects) > 0:
-                logging.debug(f'Found {len(objects)} objects in {grabber_name}')
-                timestamp = time()
-                cv2.imwrite(f'x:/frames/frame_s_{timestamp}.jpg', frame)
-                with open(f'x:/frames/frame_s_{timestamp}.txt', 'w') as file:
-                    for obj in objects:
-                        file.write(f'{obj[0]} {obj[1]} {obj[2]} {obj[3]} {obj[4]} {obj[5]}\n')
-                # for obj in objects:
-                #     logging.debug(f'Object: {obj}')                  
-        
-        if not running:
-            logging.disable(logging.DEBUG)
-            logging.info('Stop key pressed')
-            for reader in readers:
-                reader.stop()
-            logging.info('All readers stopped')
-            break
+                    objects = []
+                    
+                    for prediction in predictions:
+                        boxes = prediction.boxes.xyxy.cpu().numpy()
+                        classes = prediction.boxes.cls.cpu().numpy()
+                        confs = prediction.boxes.conf.cpu().numpy()
+                        
+                        # Проверить, что в confs есть TARGET_CLASSES
+                        # Вернуть список индексов, где есть TARGET_CLASSES
+                        target_classes = [i for i, cls in enumerate(classes) if cls in TARGET_CLASSES and confs[i] > CONF]
+                        
+                        if len(target_classes) == 0:
+                            continue
+                        # Сохранить информацию о найденных объектах в список
+                        # В формате x1, y1, x2, y2, class, conf
+                        for i in target_classes:
+                            x1, y1, x2, y2 = boxes[i]
+                            object_height = y2 - y1
+                            conf = confs[i]
+                            objects.append((x1, y1, x2, y2, classes[i], conf))
+                            
+                    if len(objects) > 0:
+                        logging.debug(f'Found {len(objects)} objects in {grabber_name}')
+                        timestamp = time()
+                        cv2.imwrite(f'x:/frames/frame_s_{timestamp}.jpg', frame)
+                        with open(f'x:/frames/frame_s_{timestamp}.txt', 'w') as file:
+                            for obj in objects:
+                                file.write(f'{obj[0]} {obj[1]} {obj[2]} {obj[3]} {obj[4]} {obj[5]}\n')
+                        # for obj in objects:
+                        #     logging.debug(f'Object: {obj}')
+                gc.collect()
+                              
+            
+            if not running:
+                logging.disable(logging.DEBUG)
+                logging.info('Stop key pressed')
+                for reader in readers:
+                    reader.stop()
+                logging.info('All readers stopped')
+                break
         
     cv2.destroyAllWindows()

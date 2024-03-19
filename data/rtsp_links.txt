@@ -16,10 +16,8 @@ https://live.cmirit.ru:443/live/smart1_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/kolhryn_640x360.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/its-pobe-luna-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/axis14_1920x1080.stream/playlist.m3u8
-https://live.cmirit.ru:443/live/serp09_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/sov-mil-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/sov-mil-02.stream/playlist.m3u8
-https://live.cmirit.ru:443/live/sov-marks-02.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/sov-marks-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/len-sov-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/sov-kom-02.stream/playlist.m3u8
@@ -35,7 +33,6 @@ https://live.cmirit.ru:443/live/vol-met_640x360.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/its-pobe-luna-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/gork-pob_640x360.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/axis5_1280x720.stream/playlist.m3u8
-https://live.cmirit.ru:443/live/serp09_1920x1080.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/sov-marks-01.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/axis6_704x576.stream/playlist.m3u8
 https://live.cmirit.ru:443/live/axis12_704x576.stream/playlist.m3u8
