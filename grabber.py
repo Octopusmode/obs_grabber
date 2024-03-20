@@ -27,7 +27,7 @@ model.to('cuda')
 
 TARGET_CLASSES = [7]
 CONF = 0.4
-CYCLE = 30
+CYCLE = 60
 
 mosaic = None
 last_time = time()
