@@ -14,7 +14,7 @@ from multiprocessing import Process, Queue
 from urllib.parse import urlparse
 from time import sleep
 import numpy as np
-import math
+from math import sqrt
 from collections import deque
 from time import time
 
@@ -27,10 +27,15 @@ model.to('cuda')
 
 TARGET_CLASSES = [7]
 CONF = 0.4
-CYCLE = 5
+CYCLE = 30
 
 mosaic = None
 last_time = time()
+
+# cv2.namedWindow('Mosaic', cv2.WINDOW_NORMAL)
+
+# data_path = '/mnt/x/frames'
+data_path = 'x:/frames'
 
 def create_mosaic(frames, final_size=(1000, 1000)):
     start = cv2.getTickCount()
@@ -39,7 +44,7 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     n_frames = len(_frames)
     # Посчитать сколько получается столбцов и строк
     aspect_ratio = final_size[0] / final_size[1]
-    n_cols = round(math.sqrt(n_frames * aspect_ratio))
+    n_cols = round(sqrt(n_frames * aspect_ratio))
     n_rows = n_frames // n_cols
 
     # Обрезать каждое изображение под пропорции размера мозаики
@@ -92,7 +97,7 @@ def create_mosaic(frames, final_size=(1000, 1000)):
     return mosaic
 
 class VideoReader(Process):
-    def __init__(self, link, frame_queue, delay=0.5):
+    def __init__(self, link, frame_queue, delay=1):
         super().__init__()
         self.is_valid = link
         self.link = link
@@ -100,7 +105,7 @@ class VideoReader(Process):
         self.cap = None
         self.is_stopped = False
         self.delay = delay
-        # logging.debug(f'{self.name} created with link {link}')
+        logging.debug(f'{self.name} created with link {link}')
         
     def run(self):
         while not self.is_stopped:
@@ -115,7 +120,7 @@ class VideoReader(Process):
                 self.start_capture()
             sleep(0.5)
             # logging.debug(f'{self.name} put frame from {self.link} to queue')
-            # sleep(self.delay)
+            sleep(self.delay)
             self.frame_queue.put((self.name, frame))
         
     def start_capture(self):
@@ -140,11 +145,11 @@ class VideoReader(Process):
 grabbed_frame_count = 0
 
 if __name__ == '__main__':
-    data_file = 'data/rtsp_links.txt'
+    data_file = 'data/links35_1.txt'
     links = []
     with open(data_file, 'r') as file:
         links = [link.strip() for link in file.readlines()]
-    links = list(set(links))[:40]
+    links = list(set(links))
     links_count = len(links)
     logging.debug(f'Found {links_count} unique links')
     frame_queue = Queue()
@@ -196,7 +201,7 @@ if __name__ == '__main__':
                     objects = []
                     
                     for prediction in predictions:
-                        boxes = prediction.boxes.xyxy.cpu().numpy()
+                        boxes = prediction.boxes.xyxyn.cpu().numpy()
                         classes = prediction.boxes.cls.cpu().numpy()
                         confs = prediction.boxes.conf.cpu().numpy()
                         
@@ -217,8 +222,8 @@ if __name__ == '__main__':
                     if len(objects) > 0:
                         logging.debug(f'Found {len(objects)} objects in {grabber_name}')
                         timestamp = time()
-                        cv2.imwrite(f'x:/frames/frame_s_{timestamp}.jpg', frame)
-                        with open(f'x:/frames/frame_s_{timestamp}.txt', 'w') as file:
+                        cv2.imwrite(f'{data_path}/frame_{grabber_name}_{timestamp}.png', frame)
+                        with open(f'{data_path}/frame_{grabber_name}_{timestamp}.txt', 'w') as file:
                             for obj in objects:
                                 file.write(f'{obj[0]} {obj[1]} {obj[2]} {obj[3]} {obj[4]} {obj[5]}\n')
                         # for obj in objects:
