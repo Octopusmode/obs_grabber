@@ -11,8 +11,8 @@ def compare_images(imageA, imageB):
         return 0
     return ssim(imageA, imageB)
 
-image_dir = "x:/frames"
-move_dir = "x:/frames/similar_night"
+image_dir = "d:/frames"
+move_dir = "d:/frames/similar"
 threshold = 0.9
 
 print("Loading images...")

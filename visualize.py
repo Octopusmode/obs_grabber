@@ -27,21 +27,26 @@ def draw_annotation(image_path, annotation_path):
 
 if __name__ == "__main__":
     # Получить имена файлов из папки без расширения
-    image_dir = Path('x:/test')
-    annotation_dir = Path('x:/test')
-    trash_dir = Path('x:/test/trash')
-    not_sure_dir = Path('x:/test/not_sure')
+    image_dir = Path('d:/frames')
+    annotation_dir = Path('d:/frames')
+    trash_dir = Path('d:/frames/trash')
+    not_sure_dir = Path('d:/frames/not_sure')
 
     trash_dir.mkdir(parents=True, exist_ok=True)
     not_sure_dir.mkdir(parents=True, exist_ok=True)
     
     image_files = [f for f in image_dir.glob('*.png')]
     annotation_files = [f for f in annotation_dir.glob('*.txt')]
-    for image_path in image_files:
+    
+    i=0
+
+    for i, image_path in enumerate(image_files):
         annotation_path = annotation_dir / (image_path.stem + '.txt')
         if annotation_path in annotation_files:
+            i += 1
             image = draw_annotation(image_path, annotation_path)
-            cv2.imshow('Render', image)
+            cv2.setWindowTitle('Render', f'Render {i}/{len(image_files)}')
+            cv2.imshow('Render', cv2.resize(image.copy(), (1440, 1080)))
             key = cv2.waitKey(0) & 0xFF
             if key == ord('q'):
                 break
