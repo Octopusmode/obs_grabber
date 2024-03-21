@@ -3,8 +3,8 @@ from pathlib import Path
 import shutil
 from tqdm import tqdm
 
-src_dir = Path('x:/test')
-old_dir = Path('x:/test/old')
+src_dir = Path('d:/frames')
+old_dir = Path('d:/frames/old')
 
 old_dir.mkdir(parents=True, exist_ok=True)
 
