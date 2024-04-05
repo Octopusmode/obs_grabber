@@ -2,7 +2,8 @@ import cv2
 import mss
 import numpy as np
 import time
-from ultralytics import YOLO
+import keyboard
+import winsound
 
 class ScreenCapture:
     def __init__(self, monitor_number=2):
@@ -26,26 +27,37 @@ cycle_time = 120
 cur_time = time.time()
 last_time = cur_time
 
+def save_frame():
+    winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
+    cv2.imwrite(f"d:/trucks_raw/screenshot_{cur_time}.png", img)
+    print("Screenshot manualy saved!")
+    
+keyboard.add_hotkey('ctrl+shift+plus', save_frame, args=(''))
+
+cv2.namedWindow('Screen', cv2.WINDOW_AUTOSIZE)
+
 if __name__ == "__main__":
     cap = ScreenCapture()
     while True:
         img = cap.capture()
-        cv2.imshow("Screen", img)
+        render = cv2.resize(img, (270, 120))
+        cv2.imshow("Screen", render)
         key = cv2.waitKey(1) & 0xFF
+        if key == ord("s"):
+            save_frame()
+        
         if key == ord("q"):
             break
-        if key == ord("s"):
-            cv2.imwrite(f"x:/trucks_raw/screenshot_{cur_time}.png", img)
-            print("Screenshot manualy saved!")
+        # if key == ord("s"):
+        #     save_frame()
             
         cur_time = time.time()    
             
         if cur_time - last_time > cycle_time:
             last_time = time.time()
-            cv2.imwrite(f"x:/trucks_raw/every_{cycle_time}_{cur_time}.png", img)
+            cv2.imwrite(f"d:/trucks_raw/every_{cycle_time}_{cur_time}.png", img)
             print(f"Screenshot saved {time.time()}")
             
         cv2.setWindowTitle("Screen", f"{cur_time=:0.2f} {last_time=:0.2f} {cur_time - last_time=:0.2f} {cycle_time=:0.2f}")
-        
         
     cv2.destroyAllWindows()
