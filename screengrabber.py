@@ -34,11 +34,14 @@ def save_frame():
     
 keyboard.add_hotkey('ctrl+shift+plus', save_frame, args=(''))
 
+cv2.namedWindow('Screen', cv2.WINDOW_AUTOSIZE)
+
 if __name__ == "__main__":
     cap = ScreenCapture()
     while True:
         img = cap.capture()
-        # cv2.imshow("Screen", img)
+        render = cv2.resize(img, (270, 120))
+        cv2.imshow("Screen", render)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
@@ -52,6 +55,6 @@ if __name__ == "__main__":
             cv2.imwrite(f"d:/trucks_raw/every_{cycle_time}_{cur_time}.png", img)
             print(f"Screenshot saved {time.time()}")
             
-        # cv2.setWindowTitle("Screen", f"{cur_time=:0.2f} {last_time=:0.2f} {cur_time - last_time=:0.2f} {cycle_time=:0.2f}")
+        cv2.setWindowTitle("Screen", f"{cur_time=:0.2f} {last_time=:0.2f} {cur_time - last_time=:0.2f} {cycle_time=:0.2f}")
         
     cv2.destroyAllWindows()
