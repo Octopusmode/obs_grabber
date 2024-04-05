@@ -4,6 +4,7 @@ import numpy as np
 import time
 import keyboard
 import winsound
+import os
 
 class ScreenCapture:
     def __init__(self, monitor_number=2):
@@ -27,10 +28,14 @@ cycle_time = 120
 cur_time = time.time()
 last_time = cur_time
 
+save_dir = "d:/trucks_raw"
+
 def save_frame():
     winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
-    cv2.imwrite(f"d:/trucks_raw/screenshot_{cur_time}.png", img)
+    cv2.imwrite(f"{save_dir}/screenshot_{cur_time}.png", img)
     print("Screenshot manualy saved!")
+    
+os.makedirs(f"{save_dir}", exist_ok=True)  
     
 keyboard.add_hotkey('ctrl+shift+plus', save_frame, args=(''))
 
@@ -55,7 +60,7 @@ if __name__ == "__main__":
             
         if cur_time - last_time > cycle_time:
             last_time = time.time()
-            cv2.imwrite(f"d:/trucks_raw/every_{cycle_time}_{cur_time}.png", img)
+            cv2.imwrite(f"{save_dir}/every_{cycle_time}_{cur_time}.png", img)
             print(f"Screenshot saved {time.time()}")
             
         cv2.setWindowTitle("Screen", f"{cur_time=:0.2f} {last_time=:0.2f} {cur_time - last_time=:0.2f} {cycle_time=:0.2f}")
